@@ -5,9 +5,13 @@ on:
     paths:
       - '.github/workflows/model-bridge-push.yml'
 
+concurrency:
+  group: model-bridge
+  cancel-in-progress: true
+
 jobs:
   bridge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 15
     steps:
       - name: Download model and llama.cpp
