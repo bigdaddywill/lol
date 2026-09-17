@@ -1,156 +1,23 @@
-name: Ghost Swarm — 400 Agent Factory
+name: Ghost Swarm Legacy
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ghost-swarm-legacy
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  node:
-    name: "Node ${{ matrix.node }} — 20 local agents"
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      max-parallel: 20
-      matrix:
-        node: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
+  retire:
+    name: Retire legacy swarm
+    runs-on: ubuntu-slim
+    timeout-minutes: 2
     steps:
-      - name: Inspect node
-        env:
-          NODE: ${{ matrix.node }}
+      - name: Confirm retirement
         run: |
-          echo "=== GHOST NODE $NODE ==="
-          nproc
-          free -h
-          lscpu | grep -E 'Model name|CPU\(s\)|Core\(s\)|Thread\(s) per core' || true
-
-      - name: Download llama.cpp
-        run: |
-          curl -L --fail --retry 3 -o llama.tar.gz https://github.com/ggml-org/llama.cpp/releases/download/b10976/llama-b10976-bin-ubuntu-x64.tar.gz
-          mkdir llama
-          tar -xzf llama.tar.gz -C llama
-          LLAMA_CLI=$(find llama -type f -name llama-cli -perm -111 | head -n 1)
-          test -n "$LLAMA_CLI"
-          echo "LLAMA_CLI=$LLAMA_CLI" >> "$GITHUB_ENV"
-          "$LLAMA_CLI" --version
-
-      - name: Run 20 micro-agents
-        env:
-          NODE: ${{ matrix.node }}
-        run: |
-          mkdir -p reports
-          roles=(
-            "systems architect"
-            "distributed systems engineer"
-            "benchmark scientist"
-            "model researcher"
-            "optimization engineer"
-            "adversarial critic"
-            "red team reviewer"
-            "software architect"
-            "AI agent designer"
-            "economics analyst"
-            "performance engineer"
-            "reliability engineer"
-            "creative strategist"
-            "security reviewer"
-            "coding agent"
-            "research agent"
-            "swarm coordinator"
-            "bottleneck hunter"
-            "contrarian"
-            "final planner"
-          )
-
-          for n in $(seq 1 20); do
-            role="${roles[$((n-1))]}"
-            echo "=== Node $NODE / Agent $n / $role ==="
-
-            prompt="You are micro-agent $n on node $NODE in a 400-agent AI swarm. Your role is $role. We are building useful AI systems with free standard GitHub-hosted runners and local GGUF models. Give one novel, technically concrete idea that other agents could build on. Focus on cooperation, throughput, reasoning quality, evaluation, or architecture. Avoid generic advice. Return at most 220 tokens."
-
-            "$LLAMA_CLI" \
-              -hf 'Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M' \
-              -st \
-              -t 2 \
-              -n 220 \
-              --temp 0.35 \
-              --top-p 0.9 \
-              -p "$prompt" \
-              > "reports/agent_${NODE}_${n}.txt" 2>&1
-          done
-
-          cat reports/agent_*.txt > node_raw.txt
-
-      - name: Reduce 20 agents into one node brief
-        env:
-          NODE: ${{ matrix.node }}
-        run: |
-          prompt="You are the reducer for node $NODE. Below are 20 micro-agent reports. Deduplicate them, detect contradictions, and produce the 8 most useful ideas plus the 3 strongest experimental proposals. Keep the output under 700 tokens. REPORTS: $(cat node_raw.txt)"
-
-          "$LLAMA_CLI" \
-            -hf 'Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M' \
-            -st \
-            -t 2 \
-            -n 700 \
-            --temp 0.2 \
-            --top-p 0.9 \
-            -p "$prompt" \
-            > node_summary.txt 2>&1
-
-      - name: Upload node outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-${{ matrix.node }}
-          path: |
-            reports/
-            node_summary.txt
-          retention-days: 1
-
-  judge:
-    name: 3B Swarm Judge
-    needs: node
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Download node briefs
-        uses: actions/download-artifact@v4
-        with:
-          pattern: node-*
-          path: node-briefs
-
-      - name: Download llama.cpp
-        run: |
-          curl -L --fail --retry 3 -o llama.tar.gz https://github.com/ggml-org/llama.cpp/releases/download/b10976/llama-b10976-bin-ubuntu-x64.tar.gz
-          mkdir llama
-          tar -xzf llama.tar.gz -C llama
-          LLAMA_CLI=$(find llama -type f -name llama-cli -perm -111 | head -n 1)
-          test -n "$LLAMA_CLI"
-          echo "LLAMA_CLI=$LLAMA_CLI" >> "$GITHUB_ENV"
-
-      - name: Synthesize 20 node briefs
-        run: |
-          cat node-briefs/node-*/node_summary.txt > all_node_summaries.txt
-          prompt="You are the final judge of a 400-agent AI swarm. Twenty nodes each reduced 20 independent local agents into a brief. Extract the strongest ideas, merge duplicates, identify disagreements, and design the best next-generation architecture. Return: (1) 10 strongest ideas, (2) 5 experiments, (3) 5 bottlenecks, (4) the optimal hierarchy for 0.5B/1.5B/3B models, (5) a benchmark proving whether the 400-agent system beats 20 agents. Keep it under 1800 tokens. NODE SUMMARIES: $(cat all_node_summaries.txt)"
-
-          "$LLAMA_CLI" \
-            -hf 'Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M' \
-            -st \
-            -t 4 \
-            -n 1800 \
-            --temp 0.2 \
-            --top-p 0.9 \
-            -p "$prompt" \
-            > swarm_final.txt 2>&1
-
-      - name: Upload final swarm report
-        uses: actions/upload-artifact@v4
-        with:
-          name: ghost-swarm-400-agent-results
-          path: |
-            node-briefs/
-            swarm_final.txt
-          retention-days: 7
+          echo "Legacy swarm workflow retired. New experiments live in ghost-lab.yml."
