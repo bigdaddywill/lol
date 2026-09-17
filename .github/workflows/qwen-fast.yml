@@ -33,6 +33,7 @@ jobs:
           mkdir -p results
           "$LLAMA_CLI" \
             -hf Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M \
+            -st \
             -t 2 \
             -n 256 \
             --temp 0.2 \
@@ -44,6 +45,7 @@ jobs:
         run: |
           "$LLAMA_CLI" \
             -hf Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M \
+            -st \
             -t 2 \
             -n 256 \
             --temp 0.2 \
