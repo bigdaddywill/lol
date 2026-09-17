@@ -1,23 +1,16 @@
 name: Ghost Swarm Legacy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
-
-concurrency:
-  group: ghost-swarm-legacy
-  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  retire:
-    name: Retire legacy swarm
+  retired:
+    name: Legacy workflow retired
     runs-on: ubuntu-slim
     timeout-minutes: 2
     steps:
       - name: Confirm retirement
-        run: |
-          echo "Legacy swarm workflow retired. New experiments live in ghost-lab.yml."
+        run: echo "Legacy swarm retired; use ghost-throughput.yml and ghost-intelligence.yml."
