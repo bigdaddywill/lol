@@ -1,9 +1,8 @@
-name: Ghost Swarm — 20 Local AI Agents
+name: Ghost Swarm — 20 Qwen Agents
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,18 +18,17 @@ jobs:
       max-parallel: 20
       matrix:
         id: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"]
-
     steps:
-      - name: Inspect runner
+      - name: Show runner specs
         env:
           ID: ${{ matrix.id }}
         run: |
           echo "=== AGENT $ID ==="
-          echo "CPU=$(nproc)"
+          nproc
           free -h
-          lscpu | grep -E 'Model name|CPU\(s\)|Core\(s\)|Thread\(s\) per core' || true
+          lscpu | grep -E 'Model name|CPU\(s\)|Core\(s\)|Thread\(s) per core' || true
 
-      - name: Download llama.cpp
+      - name: Download prebuilt llama.cpp
         run: |
           curl -L --fail --retry 3 -o llama.tar.gz https://github.com/ggml-org/llama.cpp/releases/download/b10976/llama-b10976-bin-ubuntu-x64.tar.gz
           mkdir llama
@@ -38,66 +36,15 @@ jobs:
           LLAMA_CLI=$(find llama -type f -name llama-cli -perm -111 | head -n 1)
           test -n "$LLAMA_CLI"
           echo "LLAMA_CLI=$LLAMA_CLI" >> "$GITHUB_ENV"
+          "$LLAMA_CLI" --version
 
-      - name: Run local AI agent
+      - name: Run Qwen agent
         env:
           ID: ${{ matrix.id }}
         run: |
-          case "$ID" in
-            01) ROLE="systems architect" ;;
-            02) ROLE="distributed systems engineer" ;;
-            03) ROLE="benchmark scientist" ;;
-            04) ROLE="model researcher" ;;
-            05) ROLE="optimization engineer" ;;
-            06) ROLE="adversarial critic" ;;
-            07) ROLE="red team reviewer" ;;
-            08) ROLE="software architect" ;;
-            09) ROLE="AI agent designer" ;;
-            10) ROLE="economics analyst" ;;
-            11) ROLE="performance engineer" ;;
-            12) ROLE="reliability engineer" ;;
-            13) ROLE="creative strategist" ;;
-            14) ROLE="security reviewer" ;;
-            15) ROLE="coding agent" ;;
-            16) ROLE="research agent" ;;
-            17) ROLE="swarm coordinator" ;;
-            18) ROLE="bottleneck hunter" ;;
-            19) ROLE="contrarian" ;;
-            20) ROLE="final planner" ;;
-          esac
-
-          if [ "$((10#$ID % 2))" -eq 0 ]; then
+          if [ $((10#$ID % 2)) -eq 0 ]; then
             MODEL='Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M'
           else
             MODEL='Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M'
           fi
-
-          PROMPT=$(cat <<EOF
-You are Agent $ID in a 20-agent local AI swarm.
-Your role is $ROLE.
-
-Mission:
-Find the strongest legitimate architecture for doing useful AI work with free standard GitHub-hosted runners in public repositories, respecting GitHub's documented limits.
-
-We already verified that standard public runners provide fresh Linux VMs with 4 CPUs and about 16 GiB RAM, and that local GGUF models can run with llama.cpp on CPU.
-
-Think independently. Do not repeat generic advice.
-Return exactly:
-1. Best idea
-2. Best next experiment
-3. Hidden bottleneck
-4. Best way agents should cooperate
-5. Concrete implementation sketch
-
-Be concise, technical, and skeptical.
-EOF
-)
-
-          "$LLAMA_CLI" \
-            -hf "$MODEL" \
-            -st \
-            -t 2 \
-            -n 300 \
-            --temp 0.3 \
-            --top-p 0.9 \
-            -p "$PROMPT"
+          "$LLAMA_CLI" -hf "$MODEL" -st -t 2 -n 256 --temp 0.3 --top-p 0.9 -p "You are local AI agent $ID in a 20-agent swarm. Give one highly specific, technically creative idea for using free standard GitHub-hosted runners and local GGUF models to build a useful cooperating AI system. Be concise and skeptical." 2>&1 | tee "agent_${ID}.txt"
