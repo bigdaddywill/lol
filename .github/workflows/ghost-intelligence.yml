@@ -1,0 +1,279 @@
+name: Ghost Intelligence Lab
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ghost-intelligence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghost-intelligence
+  cancel-in-progress: true
+
+env:
+  RELEASE_URL: https://github.com/ggml-org/llama.cpp/releases/download/b10976/llama-b10976-bin-ubuntu-x64.tar.gz
+  THINK_MODEL: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M
+  JUDGE_MODEL: Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M
+  MISSION: "Design the strongest legitimate architecture for turning 20 standard GitHub Actions VMs into maximum useful local-AI work, then concentrate the distributed work into one answer that preserves complementary ideas and important dissent. Address throughput, diversity, verification, compression, coordination, and failure modes."
+
+jobs:
+  researchers:
+    name: "Research node ${{ matrix.node }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        node: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+    steps:
+      - name: Download llama.cpp
+        run: |
+          curl -L --fail --retry 3 -o llama.tar.gz "$RELEASE_URL"
+          mkdir llama
+          tar -xzf llama.tar.gz -C llama
+          SERVER=$(find llama -type f -name llama-server -perm -111 | head -n 1)
+          test -n "$SERVER"
+          echo "SERVER=$SERVER" >> "$GITHUB_ENV"
+
+      - name: Start persistent research model
+        run: |
+          "$SERVER" -hf "$THINK_MODEL" -c 8192 -np 4 -cb -t 4 --host 127.0.0.1 --port 8080 > server.log 2>&1 &
+          for i in $(seq 1 180); do
+            curl -sf http://127.0.0.1:8080/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health >/dev/null
+
+      - name: Generate 8 independent candidates
+        env:
+          NODE: ${{ matrix.node }}
+          MISSION: ${{ env.MISSION }}
+        run: |
+          cat > generate.py <<'PY'
+          import json, urllib.request, os
+          node=os.environ['NODE']; mission=os.environ['MISSION']
+          lenses=['systems architecture','throughput','information compression','adversarial critique','benchmark science','software design','resource economics','contrarian strategy']
+          rows=[]
+          for i,lens in enumerate(lenses,1):
+            prompt=f"You are research node {node}. Lens: {lens}. Mission: {mission}\nPropose one distinct, implementable architecture. Explain mechanism, expected advantage, and a failure mode. Do not copy generic multi-agent advice."
+            body={'model':'local','messages':[{'role':'user','content':prompt}],'temperature':0.45,'max_tokens':240}
+            req=urllib.request.Request('http://127.0.0.1:8080/v1/chat/completions',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+            with urllib.request.urlopen(req,timeout=90) as r: obj=json.loads(r.read())
+            rows.append({'id':i,'lens':lens,'text':obj.get('choices',[{}])[0].get('message',{}).get('content','').strip()})
+          json.dump(rows,open(f'candidates_{node}.json','w'),indent=2)
+          PY
+          python3 generate.py
+
+      - name: Local evidence compression
+        env:
+          NODE: ${{ matrix.node }}
+          MISSION: ${{ env.MISSION }}
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, os
+          node=os.environ['NODE']; mission=os.environ['MISSION']
+          rows=json.load(open(f'candidates_{node}.json'))
+          text='\n'.join(f"CANDIDATE {x['id']} [{x['lens']}]: {x['text']}" for x in rows)
+          prompt=f"You are a senior local reducer. Mission: {mission}\nCompare these 8 independent proposals. Preserve complementary mechanisms instead of averaging them. Return under 600 tokens: strongest mechanisms, conflicts, what can be combined, the best integrated node design, and one falsification test.\n{text}"
+          body={'model':'local','messages':[{'role':'user','content':prompt}],'temperature':0.18,'max_tokens':600}
+          req=urllib.request.Request('http://127.0.0.1:8080/v1/chat/completions',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=120) as r: obj=json.loads(r.read())
+          open(f'brief_{node}.txt','w').write(obj.get('choices',[{}])[0].get('message',{}).get('content','').strip())
+          PY
+
+      - name: Upload node brief
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-${{ matrix.node }}
+          path: brief_${{ matrix.node }}.txt
+          retention-days: 1
+
+  reviewers:
+    name: "Peer reviewer ${{ matrix.id }}"
+    needs: researchers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        id: [1,2,3,4,5]
+    steps:
+      - name: Download all node briefs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: research-*
+          path: briefs
+          merge-multiple: true
+
+      - name: Download llama.cpp
+        run: |
+          curl -L --fail --retry 3 -o llama.tar.gz "$RELEASE_URL"
+          mkdir llama
+          tar -xzf llama.tar.gz -C llama
+          SERVER=$(find llama -type f -name llama-server -perm -111 | head -n 1)
+          test -n "$SERVER"
+          echo "SERVER=$SERVER" >> "$GITHUB_ENV"
+
+      - name: Start reviewer model
+        run: |
+          "$SERVER" -hf "$THINK_MODEL" -c 16384 -np 2 -cb -t 4 --host 127.0.0.1 --port 8080 > server.log 2>&1 &
+          for i in $(seq 1 180); do
+            curl -sf http://127.0.0.1:8080/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health >/dev/null
+
+      - name: Cross-examine the 20 briefs
+        env:
+          ID: ${{ matrix.id }}
+          MISSION: ${{ env.MISSION }}
+        run: |
+          case "$ID" in
+            1) LENS='correctness, hidden assumptions, and evidence quality' ;;
+            2) LENS='throughput, scaling, and runtime efficiency' ;;
+            3) LENS='information loss, compression, and disagreement preservation' ;;
+            4) LENS='adversarial failure modes and robustness' ;;
+            5) LENS='novelty, implementability, and what the other reviewers are likely to miss' ;;
+          esac
+          cat briefs/brief_*.txt > all_briefs.txt
+          python3 - "$LENS" <<'PY'
+          import json, urllib.request, sys, os
+          lens=sys.argv[1]; mission=os.environ['MISSION']; briefs=open('all_briefs.txt').read()
+          prompt=f"You are a peer reviewer. Mission: {mission}\nReview 20 independent node briefs through this lens: {lens}. Do not count votes. Identify the strongest mechanisms, important dissent, contradictions, missing evidence, and combinations that are stronger than their parts. End with a 5-item evidence-backed shortlist. Keep under 900 tokens.\nNODE BRIEFS:\n{briefs}"
+          body={'model':'local','messages':[{'role':'user','content':prompt}],'temperature':0.2,'max_tokens':900}
+          req=urllib.request.Request('http://127.0.0.1:8080/v1/chat/completions',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=180) as r: obj=json.loads(r.read())
+          open(f'review_{os.environ["ID"]}.txt','w').write(obj.get('choices',[{}])[0].get('message',{}).get('content','').strip())
+          PY
+
+      - name: Upload review
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-${{ matrix.id }}
+          path: review_${{ matrix.id }}.txt
+          retention-days: 1
+
+  final:
+    name: 3B Intelligence Concentrator
+    needs: reviewers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download node briefs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: research-*
+          path: briefs
+          merge-multiple: true
+      - name: Download peer reviews
+        uses: actions/download-artifact@v4
+        with:
+          pattern: review-*
+          path: reviews
+          merge-multiple: true
+
+      - name: Download llama.cpp
+        run: |
+          curl -L --fail --retry 3 -o llama.tar.gz "$RELEASE_URL"
+          mkdir llama
+          tar -xzf llama.tar.gz -C llama
+          SERVER=$(find llama -type f -name llama-server -perm -111 | head -n 1)
+          test -n "$SERVER"
+          echo "SERVER=$SERVER" >> "$GITHUB_ENV"
+
+      - name: Start 3B judge
+        run: |
+          "$SERVER" -hf "$JUDGE_MODEL" -c 32768 -np 1 -cb -t 4 --host 127.0.0.1 --port 8080 > server.log 2>&1 &
+          for i in $(seq 1 180); do
+            curl -sf http://127.0.0.1:8080/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health >/dev/null
+
+      - name: Build evidence bundle
+        run: |
+          cat briefs/brief_*.txt > node_briefs.txt
+          cat reviews/review_*.txt > peer_reviews.txt
+
+      - name: Baseline answer without swarm
+        env:
+          MISSION: ${{ env.MISSION }}
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, os
+          prompt='Answer this mission directly from first principles. Do not use any external agent reports. Be concrete and implementation-oriented. Mission: '+os.environ['MISSION']
+          body={'model':'local','messages':[{'role':'user','content':prompt}],'temperature':0.15,'max_tokens':1600}
+          req=urllib.request.Request('http://127.0.0.1:8080/v1/chat/completions',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=300) as r: obj=json.loads(r.read())
+          open('baseline.txt','w').write(obj.get('choices',[{}])[0].get('message',{}).get('content','').strip())
+          PY
+
+      - name: Swarm synthesis
+        env:
+          MISSION: ${{ env.MISSION }}
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, os
+          mission=os.environ['MISSION']; briefs=open('node_briefs.txt').read(); reviews=open('peer_reviews.txt').read()
+          prompt=f"You are the final intelligence concentrator. Mission: {mission}\nDo not average opinions. Reconstruct the problem, then use the distributed evidence to build the strongest integrated architecture. Preserve minority mechanisms when they add information the consensus lacks. Separate measured facts from proposed mechanisms. Produce a draft with: architecture, data flow, throughput strategy, intelligence-fusion strategy, failure modes, and a proof plan.\nNODE BRIEFS:\n{briefs}\nPEER REVIEWS:\n{reviews}"
+          body={'model':'local','messages':[{'role':'user','content':prompt}],'temperature':0.14,'max_tokens':2000}
+          req=urllib.request.Request('http://127.0.0.1:8080/v1/chat/completions',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=300) as r: obj=json.loads(r.read())
+          open('swarm_draft.txt','w').write(obj.get('choices',[{}])[0].get('message',{}).get('content','').strip())
+          PY
+
+      - name: Adversarial verification
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          draft=open('swarm_draft.txt').read(); reviews=open('peer_reviews.txt').read()
+          prompt="Attack the swarm draft. Find consensus traps, double-counted reasoning, unsupported assumptions, information loss, and any place where more agents would not actually improve the answer. Give the smallest set of corrections.\nDRAFT:\n"+draft+"\nREVIEWS:\n"+reviews
+          body={'model':'local','messages':[{'role':'user','content':prompt}],'temperature':0.12,'max_tokens':1100}
+          req=urllib.request.Request('http://127.0.0.1:8080/v1/chat/completions',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=300) as r: obj=json.loads(r.read())
+          open('verification.txt','w').write(obj.get('choices',[{}])[0].get('message',{}).get('content','').strip())
+          PY
+
+      - name: Final answer
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          draft=open('swarm_draft.txt').read(); verify=open('verification.txt').read()
+          prompt="Rewrite the draft into the definitive implementation-oriented answer. Apply every valid correction from the verifier, remove weak claims, preserve useful dissent, and give explicit stages, metrics, and the next experiment.\nDRAFT:\n"+draft+"\nVERIFICATION:\n"+verify
+          body={'model':'local','messages':[{'role':'user','content':prompt}],'temperature':0.1,'max_tokens':2200}
+          req=urllib.request.Request('http://127.0.0.1:8080/v1/chat/completions',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=300) as r: obj=json.loads(r.read())
+          open('swarm_final.txt','w').write(obj.get('choices',[{}])[0].get('message',{}).get('content','').strip())
+          PY
+
+      - name: Blind baseline comparison
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          baseline=open('baseline.txt').read(); swarm=open('swarm_final.txt').read()
+          prompt="Compare Answer A and Answer B for the original mission. Score each 0-10 on correctness, completeness, implementability, novelty, and resistance to unsupported assumptions. Do not identify which is the swarm answer. Explain each score briefly and state which answer has stronger evidence.\nANSWER A:\n"+baseline+"\nANSWER B:\n"+swarm
+          body={'model':'local','messages':[{'role':'user','content':prompt}],'temperature':0.08,'max_tokens':1200}
+          req=urllib.request.Request('http://127.0.0.1:8080/v1/chat/completions',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=300) as r: obj=json.loads(r.read())
+          open('blind_comparison.txt','w').write(obj.get('choices',[{}])[0].get('message',{}).get('content','').strip())
+          PY
+
+      - name: Upload concentrated intelligence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghost-intelligence-results
+          path: |
+            baseline.txt
+            node_briefs.txt
+            peer_reviews.txt
+            swarm_draft.txt
+            verification.txt
+            swarm_final.txt
+            blind_comparison.txt
+          retention-days: 7
