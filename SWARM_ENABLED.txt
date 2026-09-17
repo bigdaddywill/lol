@@ -1,0 +1,1 @@
+Ghost Swarm v1 enabled. The 20-agent matrix is intentionally finite and bounded by GitHub's documented concurrency limits.
