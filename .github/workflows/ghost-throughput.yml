@@ -1,0 +1,112 @@
+name: Ghost Throughput Lab
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ghost-throughput.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ghost-throughput
+  cancel-in-progress: true
+
+env:
+  RELEASE_URL: https://github.com/ggml-org/llama.cpp/releases/download/b10976/llama-b10976-bin-ubuntu-x64.tar.gz
+  MODEL: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M
+
+jobs:
+  node:
+    name: "Throughput node ${{ matrix.node }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        node: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+    steps:
+      - name: Download llama.cpp
+        run: |
+          curl -L --fail --retry 3 -o llama.tar.gz "$RELEASE_URL"
+          mkdir llama
+          tar -xzf llama.tar.gz -C llama
+          SERVER=$(find llama -type f -name llama-server -perm -111 | head -n 1)
+          test -n "$SERVER"
+          echo "SERVER=$SERVER" >> "$GITHUB_ENV"
+
+      - name: Start persistent model
+        run: |
+          "$SERVER" -hf "$MODEL" -c 4096 -np 8 -cb -t 4 --host 127.0.0.1 --port 8080 > server.log 2>&1 &
+          for i in $(seq 1 180); do
+            curl -sf http://127.0.0.1:8080/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health >/dev/null
+
+      - name: Measure useful calls
+        run: |
+          python3 - <<'PY'
+          import concurrent.futures, json, statistics, time, urllib.request
+          URL = 'http://127.0.0.1:8080/v1/chat/completions'
+          TASKS = [
+            'Solve the bat-and-ball problem algebraically in one paragraph.',
+            'Give a Python function that deduplicates while preserving order.',
+            'Name one hidden failure mode of majority voting among AI agents.',
+            'Give one concrete way to compress 20 agent answers without erasing disagreement.'
+          ]
+
+          def call(i):
+            body = {'model':'local','messages':[{'role':'user','content':TASKS[i % len(TASKS)]}], 'temperature':0.2, 'max_tokens':96}
+            req = urllib.request.Request(URL, data=json.dumps(body).encode(), headers={'Content-Type':'application/json'})
+            t = time.perf_counter()
+            try:
+              with urllib.request.urlopen(req, timeout=20) as r:
+                obj = json.loads(r.read())
+              text = obj.get('choices',[{}])[0].get('message',{}).get('content','')
+              toks = obj.get('usage',{}).get('completion_tokens',0) or 0
+              return len(text.strip()) >= 12, toks, time.perf_counter()-t
+            except Exception:
+              return False, 0, time.perf_counter()-t
+
+          def burst(c, seconds=20):
+            deadline = time.perf_counter() + seconds
+            seq = 0
+            def worker(_):
+              nonlocal seq
+              out=[]
+              while time.perf_counter() < deadline:
+                i=seq; seq+=1
+                out.append(call(i))
+              return out
+            with concurrent.futures.ThreadPoolExecutor(max_workers=c) as ex:
+              rows=[x for part in ex.map(worker, range(c)) for x in part]
+            useful=sum(x[0] for x in rows)
+            toks=sum(x[1] for x in rows)
+            lats=[x[2] for x in rows]
+            return {'concurrency':c,'seconds':seconds,'useful':useful,'calls_per_sec':useful/seconds,'tokens':toks,'median_latency':statistics.median(lats) if lats else None}
+
+          sweep=[burst(c) for c in (1,2,4,8)]
+          best=max(sweep,key=lambda x:x['calls_per_sec'])
+          sustained=burst(best['concurrency'], 300)
+          report={
+            'node':'${{ matrix.node }}',
+            'model': 'Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M',
+            'sweep':sweep,
+            'best_concurrency':best['concurrency'],
+            'sustained':sustained,
+            'projected_useful_calls_15min': sustained['useful']*3
+          }
+          print(json.dumps(report,indent=2))
+          json.dump(report,open('throughput_${{ matrix.node }}.json','w'),indent=2)
+          PY
+
+      - name: Upload node result
+        uses: actions/upload-artifact@v4
+        with:
+          name: throughput-${{ matrix.node }}
+          path: throughput_${{ matrix.node }}.json
+          retention-days: 7
