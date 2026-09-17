@@ -10,20 +10,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Download Qwen 0.5B GGUF
+      - name: Download model and llama.cpp
         shell: bash
         run: |
           set -euo pipefail
-          url='https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true'
-          curl -L --fail --retry 3 --retry-all-errors -o qwen2.5-0.5b-instruct-q4_k_m.gguf "$url"
-          sha256sum qwen2.5-0.5b-instruct-q4_k_m.gguf | tee sha256.txt
-          ls -lh qwen2.5-0.5b-instruct-q4_k_m.gguf
-      - name: Upload model bridge artifact
+          model_url='https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true'
+          llama_url='https://github.com/ggml-org/llama.cpp/releases/download/b10976/llama-b10976-bin-ubuntu-x64.tar.gz'
+          curl -L --fail --retry 3 --retry-all-errors -o qwen2.5-0.5b-instruct-q4_k_m.gguf "$model_url"
+          curl -L --fail --retry 3 --retry-all-errors -o llama.tar.gz "$llama_url"
+          mkdir llama
+          tar -xzf llama.tar.gz -C llama
+          server=$(find llama -type f -name llama-server -perm -111 | head -n 1)
+          test -n "$server"
+          cp "$server" llama-server
+          chmod +x llama-server
+          sha256sum qwen2.5-0.5b-instruct-q4_k_m.gguf llama-server | tee sha256.txt
+          ls -lh qwen2.5-0.5b-instruct-q4_k_m.gguf llama-server
+      - name: Upload bridge artifact
         uses: actions/upload-artifact@v4
         with:
-          name: qwen-0.5b-bridge
+          name: qwen-0.5b-local-inference-kit
           path: |
             qwen2.5-0.5b-instruct-q4_k_m.gguf
+            llama-server
             sha256.txt
           compression-level: 0
           retention-days: 1
