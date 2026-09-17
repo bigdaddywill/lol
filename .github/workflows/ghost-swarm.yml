@@ -18,26 +18,66 @@ jobs:
       max-parallel: 20
       matrix:
         include:
-          - {id: 01, role: systems-architect, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 02, role: distributed-systems, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 03, role: benchmark-scientist, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 04, role: model-researcher, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 05, role: optimization-engineer, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 06, role: adversarial-critic, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 07, role: red-team, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 08, role: software-architect, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 09, role: ai-agent-designer, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 10, role: economics-analyst, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 11, role: performance-engineer, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 12, role: reliability-engineer, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 13, role: creative-strategist, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 14, role: security-reviewer, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 15, role: coding-agent, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 16, role: research-agent, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 17, role: swarm-coordinator, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 18, role: bottleneck-hunter, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 19, role: contrarian, model: Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M}
-          - {id: 20, role: final-planner, model: Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M}
+          - id: "01"
+            role: "systems-architect"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "02"
+            role: "distributed-systems"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "03"
+            role: "benchmark-scientist"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "04"
+            role: "model-researcher"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "05"
+            role: "optimization-engineer"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "06"
+            role: "adversarial-critic"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "07"
+            role: "red-team"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "08"
+            role: "software-architect"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "09"
+            role: "ai-agent-designer"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "10"
+            role: "economics-analyst"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "11"
+            role: "performance-engineer"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "12"
+            role: "reliability-engineer"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "13"
+            role: "creative-strategist"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "14"
+            role: "security-reviewer"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "15"
+            role: "coding-agent"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "16"
+            role: "research-agent"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "17"
+            role: "swarm-coordinator"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "18"
+            role: "bottleneck-hunter"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
+          - id: "19"
+            role: "contrarian"
+            model: "Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M"
+          - id: "20"
+            role: "final-planner"
+            model: "Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M"
 
     steps:
       - name: Show actual machine
@@ -140,7 +180,7 @@ AGENT REPORTS:
 EOF
           )
           PROMPT="$PROMPT$(cat combined_agents.txt)"
-          "$LLAMA_CLI" -hf Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M -st -t 4 -n 1024 --temp 0.2 --top-p 0.9 -p "$PROMPT" 2>&1 | tee results/swarm_judge.txt
+          "$LLAMA_CLI" -hf "Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M" -st -t 4 -n 1024 --temp 0.2 --top-p 0.9 -p "$PROMPT" 2>&1 | tee results/swarm_judge.txt
 
       - name: Upload swarm synthesis
         uses: actions/upload-artifact@v4
