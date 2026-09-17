@@ -1,0 +1,29 @@
+name: Model Bridge Probe
+
+on:
+  push:
+    paths:
+      - '.github/workflows/model-bridge-push.yml'
+
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download Qwen 0.5B GGUF
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true'
+          curl -L --fail --retry 3 --retry-all-errors -o qwen2.5-0.5b-instruct-q4_k_m.gguf "$url"
+          sha256sum qwen2.5-0.5b-instruct-q4_k_m.gguf | tee sha256.txt
+          ls -lh qwen2.5-0.5b-instruct-q4_k_m.gguf
+      - name: Upload model bridge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qwen-0.5b-bridge
+          path: |
+            qwen2.5-0.5b-instruct-q4_k_m.gguf
+            sha256.txt
+          compression-level: 0
+          retention-days: 1
